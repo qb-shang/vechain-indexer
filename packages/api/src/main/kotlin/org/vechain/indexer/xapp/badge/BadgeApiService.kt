@@ -8,7 +8,6 @@ import org.springframework.data.domain.SliceImpl
 import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.data.mongodb.core.query.Criteria
 import org.springframework.data.mongodb.core.query.Query
-import org.springframework.data.mongodb.core.query.Update
 import org.springframework.stereotype.Service
 import org.vechain.indexer.IndexerNames
 import org.vechain.indexer.IndexerService
@@ -46,12 +45,13 @@ open class BadgeApiService(
 
     open fun getAppBadges(appId: String): List<BadgeSummary> {
         val allAwards = repository.findAllByAppId(appId)
+        val privateByType = loadBadgeSettings(appId)
         return BadgeType.entries.map { type ->
             val typeAwards = allAwards.filter { it.badgeType == type }
             BadgeSummary(
                 badgeType = type,
                 badgeName = BADGE_NAMES[type] ?: type.name,
-                isPublished = typeAwards.isEmpty() || typeAwards.all { it.isPublished },
+                isPublished = privateByType[type.value] != true,
                 totalBadgesEarned = typeAwards.size,
                 latestBadges = typeAwards.maxByOrNull { it.round }?.round,
                 earned = if (typeAwards.isEmpty()) 0 else 1,
@@ -64,7 +64,7 @@ open class BadgeApiService(
         return BadgeDetail(
             badgeType = badgeType,
             badgeName = BADGE_NAMES[badgeType] ?: badgeType.name,
-            isPublished = awards.isEmpty() || awards.all { it.isPublished },
+            isPublished = loadBadgeSettings(appId)[badgeType.value] != true,
             description = BADGE_DESCRIPTIONS[badgeType] ?: "",
             totalBadgesEarned = awards.size,
             latestBadges = awards.maxByOrNull { it.round }?.round,
@@ -73,12 +73,6 @@ open class BadgeApiService(
                     .sortedByDescending { it.round }
                     .map { BadgeRecord(round = it.round, rank = it.rank, date = it.blockTimestamp) },
         )
-    }
-
-    open fun updateBadgeVisibility(appId: String, badgeType: BadgeType, isPublished: Boolean) {
-        val query = Query(Criteria.where("appId").`is`(appId).and("badgeType").`is`(badgeType))
-        val update = Update.update("isPublished", isPublished)
-        mongoTemplate.updateMulti(query, update, BadgeAward::class.java)
     }
 
     open fun getBadgeRecords(
@@ -116,7 +110,11 @@ open class BadgeApiService(
     }
 
     open fun getPublicBadges(appId: String): List<BadgeAward> {
-        val allPublic = repository.findAllPublicByAppId(appId)
+        val privateByType = loadBadgeSettings(appId)
+        val allPublic =
+            repository.findAllPublicByAppId(appId).filter {
+                privateByType[it.badgeType.value] != true
+            }
         if (allPublic.isEmpty()) return emptyList()
         val latestRound = allPublic.maxOf { it.round }
         return allPublic.filter { it.round == latestRound }
@@ -192,13 +190,14 @@ open class BadgeApiService(
 
     open fun getEarnedBadges(appId: String): AppEarnedBadgesResponse {
         val allAwards = repository.findAllByAppId(appId)
+        val privateByType = loadBadgeSettings(appId)
         val badges =
             BadgeType.entries.map { type ->
                 val typeAwards = allAwards.filter { it.badgeType == type }
                 BadgeSummary(
                     badgeType = type,
                     badgeName = BADGE_NAMES[type] ?: type.name,
-                    isPublished = typeAwards.isEmpty() || typeAwards.all { it.isPublished },
+                    isPublished = privateByType[type.value] != true,
                     totalBadgesEarned = typeAwards.size,
                     latestBadges = typeAwards.maxByOrNull { it.round }?.round,
                     earned = if (typeAwards.isEmpty()) 0 else 1,

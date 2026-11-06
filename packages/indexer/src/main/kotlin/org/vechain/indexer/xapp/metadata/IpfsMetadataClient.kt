@@ -155,9 +155,9 @@ class IpfsMetadataClient(
 
     /**
      * Counts how many of the optional metadata fields the app filled in. The optional items are:
-     * `social_urls`, `tweets`, `whitepaper`, `tutorial` (`tutorial_video` OR `tutorial_images`
-     * count as a single item), `more_details.team_background`, `more_details.app_roadmap`,
-     * `more_details.ecosystem_partners`. Maximum is 7.
+     * `social_urls`, `tweets`, `version_history`, `whitepaper`, `tutorial` (`tutorial_video` OR
+     * `tutorial_images` count as a single item), `more_details.team_background`,
+     * `more_details.app_roadmap`, `more_details.ecosystem_partners`. Maximum is 8.
      */
     private fun countOptionalFields(root: JsonNode): Int {
         var count = 0

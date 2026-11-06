@@ -950,20 +950,6 @@
         ],
         "type": "object"
       },
-      "BadgeVisibilityRequest": {
-        "description": "Request body for updating badge visibility",
-        "properties": {
-          "isPublished": {
-            "description": "Whether the badge should be published",
-            "example": true,
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "isPublished"
-        ],
-        "type": "object"
-      },
       "BlockUsage": {
         "properties": {
           "blockId": {
@@ -18313,123 +18299,6 @@
         ]
       }
     },
-    "/api/v1/xapp/apps/{appId}/badges/{badgeType}/visibility": {
-      "put": {
-        "operationId": "updateBadgeVisibility",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "appId",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "badgeType",
-            "required": true,
-            "schema": {
-              "enum": [
-                "topEcosystemDapp",
-                "topDistributionPerformer",
-                "navigatorsPick"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "$ref": "#/components/parameters/XProjectIdHeader"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BadgeVisibilityRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadgeDetail"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            },
-            "description": "Validation errors occurred, eg: invalid input"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "Access to the requested resource is forbidden"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            },
-            "description": "Requested resource was not found"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              },
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            },
-            "description": "Service not available"
-          }
-        },
-        "summary": "Update badge visibility (Published/Unpublished).",
-        "tags": [
-          "XApp - Badges"
-        ]
-      }
-    },
     "/api/v1/xapp/apps/{appId}/eligibility": {
       "get": {
         "description": "UX pre-check backed by the indexer's all-time action summary (totalRewardAmount > 0 for this app+wallet). This mirrors the on-chain guard (VeBetterPassport.userUniqueAppInteraction, set when a reward is distributed); the XAppReviewManager contract remains the authoritative enforcer.",
@@ -20542,10 +20411,6 @@
       "name": "Stargate"
     },
     {
-      "description": "Query and manage XApp badge awards.",
-      "name": "XApp - Badges"
-    },
-    {
       "description": "Query indexed XApp reviews.",
       "name": "XApp - Reviews"
     },
@@ -20584,6 +20449,10 @@
     {
       "description": "Reward-eligibility pre-check for rating/review.",
       "name": "XApp - Eligibility"
+    },
+    {
+      "description": "Query XApp badge awards.",
+      "name": "XApp - Badges"
     },
     {
       "description": "Query VeVote Historic Proposals",

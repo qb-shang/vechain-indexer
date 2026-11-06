@@ -157,9 +157,3 @@ data class BadgeRoundRankResponse(
     @Schema(description = "Total Badges Earned", example = "12") val totalBadgesEarned: Long,
     @Schema(description = "Latest Badges", example = "15") val latestBadges: Long?,
 )
-
-@Schema(description = "Request body for updating badge visibility")
-data class BadgeVisibilityRequest(
-    @Schema(description = "Whether the badge should be published", example = "true")
-    val isPublished: Boolean
-)

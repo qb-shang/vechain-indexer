@@ -739,12 +739,6 @@
         },
         {
           "filter": {
-            "query": "@httpRequest.uri:/api/v1/xapp/apps/*/badges/*/visibility"
-          },
-          "name": "/api/v1/xapp/apps/{appId}/badges/{badgeType}/visibility"
-        },
-        {
-          "filter": {
             "query": "@httpRequest.uri:/api/v1/safes/*/transactions/*/state"
           },
           "name": "/api/v1/safes/{safe}/transactions/{txHash}/state"

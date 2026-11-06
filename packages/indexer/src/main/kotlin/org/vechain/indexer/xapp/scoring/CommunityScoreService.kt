@@ -34,13 +34,14 @@ data class CommunityScoreResult(
  * VBD Reputation Layer Proposal (Layer 4, 30% weight). This is a pure calculation over the current
  * rating/review state — no dependency on cycle scores or rounds.
  *
- * NOTE: the production scoring pipeline inlines this logic in [AppRoundScoreService]; this service
- * is kept in sync (and exercised by its unit test) as the canonical, documented implementation.
+ * This is the single implementation used by the production scoring pipeline
+ * ([AppRoundScoreService]). App ids in the results are lower-cased to match the round-score
+ * documents.
  *
  * Other services call [computeCommunityScore] to obtain the score for a single app or
  * [computeCommunityScores] for all apps.
  */
-@Profile("b3tr")
+@Profile("b3tr", "b3tr-app-round-score")
 @Service
 open class CommunityScoreService(
     private val mongoTemplate: MongoTemplate,
@@ -58,7 +59,7 @@ open class CommunityScoreService(
 
     /** Compute the Community Score for a specific app, or null if it has no rating data. */
     open fun computeCommunityScore(appId: String): CommunityScoreResult? =
-        computeCommunityScores().find { it.appId == appId }
+        computeCommunityScores().find { it.appId == appId.lowercase() }
 
     /**
      * Compute Community Scores for all apps that have rating data. Returns results sorted by
@@ -157,7 +158,7 @@ open class CommunityScoreService(
         val results = mongoTemplate.aggregate(aggregation, collection, Document::class.java)
         val map = mutableMapOf<String, AppRatingStats>()
         results.forEach { doc ->
-            val appId = (doc["_id"] as? String) ?: return@forEach
+            val appId = (doc["_id"] as? String)?.lowercase() ?: return@forEach
             val count = toLong(doc.get("count"))
             val average = BigDecimal.valueOf((doc.get("average") as? Number)?.toDouble() ?: 0.0)
             map[appId] = AppRatingStats(appId = appId, avgRating = average, numRatings = count)
@@ -199,7 +200,7 @@ open class CommunityScoreService(
         val results = mongoTemplate.aggregate(aggregation, collection, Document::class.java)
         val map = mutableMapOf<String, AppVoteStats>()
         results.forEach { doc ->
-            val appId = (doc["_id"] as? String) ?: return@forEach
+            val appId = (doc["_id"] as? String)?.lowercase() ?: return@forEach
             val helpful = toLong(doc.get("helpfulVotes"))
             val unhelpful = toLong(doc.get("unhelpfulVotes"))
             map[appId] =

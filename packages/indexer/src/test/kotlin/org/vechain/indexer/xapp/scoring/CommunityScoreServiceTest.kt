@@ -67,37 +67,37 @@ class CommunityScoreServiceTest {
         // adjustedRating=0 must NOT dilute the eligible apps' percentile ranks; without the fix the
         // lowest eligible app would score ~25 instead of 0.
         stubRatings(
-            Triple("appA", 23L, 4.4),
-            Triple("appB", 22L, 4.4),
-            Triple("appC", 21L, 4.4),
-            Triple("appJunk", 1L, 3.0),
+            Triple("appa", 23L, 4.4),
+            Triple("appb", 22L, 4.4),
+            Triple("appc", 21L, 4.4),
+            Triple("appjunk", 1L, 3.0),
         )
 
         val scores = communityScoreService.computeCommunityScores().associateBy { it.appId }
 
         // Ineligible app: score is exactly 0
-        assertEquals(BigDecimal.ZERO, scores["appJunk"]!!.communityScore)
+        assertEquals(BigDecimal.ZERO, scores["appjunk"]!!.communityScore)
 
         // With junk excluded from the pool, the 3 eligible apps rank among themselves:
         // appA (highest adjusted) > appB > appC (lowest → 0).
         assertEquals(
             0,
-            scores["appC"]!!.communityScore.compareTo(BigDecimal.ZERO),
+            scores["appc"]!!.communityScore.compareTo(BigDecimal.ZERO),
             "appC should be last among eligible apps → score 0 (not diluted by junk)",
         )
         assertTrue(
-            scores["appA"]!!.communityScore > scores["appB"]!!.communityScore,
+            scores["appa"]!!.communityScore > scores["appb"]!!.communityScore,
             "appA (more ratings) should outrank appB",
         )
         assertTrue(
-            scores["appB"]!!.communityScore > scores["appC"]!!.communityScore,
+            scores["appb"]!!.communityScore > scores["appc"]!!.communityScore,
             "appB should outrank appC",
         )
     }
 
     @Test
     fun `apps below R_MIN always score zero even when all apps are ineligible`() {
-        stubRatings(Triple("appA", 5L, 4.0), Triple("appB", 3L, 5.0))
+        stubRatings(Triple("appa", 5L, 4.0), Triple("appb", 3L, 5.0))
 
         val scores = communityScoreService.computeCommunityScores()
         scores.forEach {
@@ -107,5 +107,15 @@ class CommunityScoreServiceTest {
                 "app ${it.appId} should be 0",
             )
         }
+    }
+
+    @Test
+    fun `app ids are lower-cased to match round-score documents`() {
+        stubRatings(Triple("0xABCdef", 25L, 4.0))
+
+        val scores = communityScoreService.computeCommunityScores()
+
+        assertEquals(listOf("0xabcdef"), scores.map { it.appId })
+        assertEquals(25L, communityScoreService.computeCommunityScore("0xABCDEF")!!.numRatings)
     }
 }

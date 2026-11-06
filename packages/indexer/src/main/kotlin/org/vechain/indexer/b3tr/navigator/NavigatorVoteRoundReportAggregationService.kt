@@ -19,7 +19,6 @@ import org.vechain.indexer.b3tr.round.repository.CycleInfoRepository
 class NavigatorVoteRoundReportAggregationService(
     private val mongoTemplate: MongoTemplate,
     private val cycleInfoRepository: CycleInfoRepository,
-    private val navigatorCitizenRepository: NavigatorCitizenRepository,
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
 
@@ -115,9 +114,16 @@ class NavigatorVoteRoundReportAggregationService(
         roundBlockTimestamp: Long,
     ): RoundAggregationResult {
         val reportId = NavigatorVoteRoundReport.idForRound(roundId)
-        val activeCitizens = navigatorCitizenRepository.findAll().filter { it.active }
-        val citizenToNavigator =
-            activeCitizens.associate { it.address.lowercase() to it.navigator.lowercase() }
+        // Attribute each vote to the navigator the citizen had at the vote's block, so past rounds
+        // are not rewritten by later delegation changes. Navigator status (for votes cast by a
+        // navigator directly) is still read from current state.
+        val delegations =
+            NavigatorDelegationTimeline(
+                mongoTemplate.findAll(
+                    NavigatorDelegationEvent::class.java,
+                    IndexerNames.NAVIGATOR_DELEGATION_EVENT.COLLECTION,
+                )
+            )
         val activeNavigatorAddresses =
             mongoTemplate
                 .find(
@@ -157,6 +163,7 @@ class NavigatorVoteRoundReportAggregationService(
 
         votes.forEach { ev ->
             val voter = ((ev["from"] as? String) ?: (ev["origin"] as? String) ?: "").lowercase()
+            val voteBlock = (ev["blockNumber"] as? Number)?.toLong() ?: Long.MAX_VALUE
             val isActiveNavigatorVoter =
                 activeNavigatorAddresses.contains(voter) ||
                     mongoTemplate.exists(
@@ -168,7 +175,9 @@ class NavigatorVoteRoundReportAggregationService(
                         ),
                         IndexerNames.NAVIGATOR.COLLECTION,
                     )
-            val navigator = citizenToNavigator[voter] ?: if (isActiveNavigatorVoter) voter else null
+            val navigator =
+                delegations.navigatorAt(voter, voteBlock)
+                    ?: if (isActiveNavigatorVoter) voter else null
             if (navigator.isNullOrBlank()) {
                 manualVotes++
                 return@forEach

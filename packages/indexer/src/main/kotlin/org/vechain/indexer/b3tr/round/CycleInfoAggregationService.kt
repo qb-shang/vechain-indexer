@@ -186,7 +186,8 @@ class CycleInfoAggregationService(
             maxRoundId,
             elapsed,
         )
-        if (latestRecordedRound == null) return 0
+        // Also publish on the first sync (empty cycle_info), so rounds already completed get
+        // first-seen data and scores instead of waiting for the next round to settle.
         return maxRoundId
     }
 

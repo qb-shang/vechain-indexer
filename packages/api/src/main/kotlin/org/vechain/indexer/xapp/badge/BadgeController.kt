@@ -7,8 +7,6 @@ import org.springframework.context.annotation.Profile
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.PutMapping
-import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
@@ -23,7 +21,7 @@ import org.vechain.indexer.validation.ValidPageSize
 @Validated
 @RestController
 @RequestMapping(XAPP_PATH)
-@Tag(name = "XApp - Badges", description = "Query and manage XApp badge awards.")
+@Tag(name = "XApp - Badges", description = "Query XApp badge awards.")
 open class BadgeController(private val service: BadgeApiService) {
 
     @GetMapping("/apps/{appId}/badges")
@@ -39,18 +37,6 @@ open class BadgeController(private val service: BadgeApiService) {
         @PathVariable appId: String,
         @PathVariable badgeType: BadgeType,
     ): BadgeDetail = service.getBadgeDetail(appId, badgeType)
-
-    @PutMapping("/apps/{appId}/badges/{badgeType}/visibility")
-    @Operation(summary = "Update badge visibility (Published/Unpublished).")
-    @CommonApiResponses
-    open fun updateBadgeVisibility(
-        @PathVariable appId: String,
-        @PathVariable badgeType: BadgeType,
-        @RequestBody request: BadgeVisibilityRequest,
-    ): BadgeDetail {
-        service.updateBadgeVisibility(appId, badgeType, request.isPublished)
-        return service.getBadgeDetail(appId, badgeType)
-    }
 
     @GetMapping("/apps/{appId}/badges/{badgeType}/records")
     @Operation(summary = "Get paginated badge award records for a specific badge type.")

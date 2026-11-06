@@ -37,49 +37,52 @@ class UserFirstSeenAggregationService(
         private const val WATERMARK_COLLECTION = "b3tr_user_first_seen_watermark"
     }
 
+    /**
+     * Aggregates first-seen data for every completed round not processed yet, oldest first, and
+     * publishes one [UserFirstSeenAggregationCompletedEvent] per round so downstream scoring runs
+     * for each of them. Processing all pending rounds (not just `latest - 1`) matters after a fresh
+     * sync or downtime, when several rounds complete at once; first-seen rows are insert-only, so
+     * rounds must be handled in ascending order.
+     */
     @EventListener
     fun onCycleInfoCompleted(event: CycleInfoAggregationCompletedEvent) {
         if (event.syncedUpToRound <= 0) {
             logger.info("No new rounds synced in CycleInfo event, skipping UserFirstSeen")
             return
         }
-        try {
-            aggregateFirstSeen()
-            // Run the dependent navigator vote round report aggregation now that fresh
-            // cycle info is available. The bean is profile-gated and optional, so
-            // ifAvailable no-ops when absent. It has its own watermark and try/catch,
-            // so it is safe to call inline without affecting UserFirstSeen's flow.
-            navigatorVoteReportAggregationService.ifAvailable { it.aggregateNavigatorVoteReports() }
-        } catch (e: Exception) {
-            logger.error("UserFirstSeen aggregation failed", e)
-        } finally {
+        val rounds =
+            try {
+                pendingRounds()
+            } catch (e: Exception) {
+                logger.error("UserFirstSeen aggregation failed", e)
+                emptyList()
+            }
+        for (round in rounds) {
+            try {
+                aggregateFirstSeen(round)
+            } catch (e: Exception) {
+                // Later rounds depend on earlier first-seen rows; retry from here next time.
+                logger.error("UserFirstSeen aggregation failed for round {}", round, e)
+                break
+            }
             applicationEventPublisher.publishEvent(
-                UserFirstSeenAggregationCompletedEvent(processedUpToRound = lastTargetRound)
+                UserFirstSeenAggregationCompletedEvent(processedUpToRound = round)
             )
         }
+        // Run the dependent navigator vote round report aggregation now that fresh cycle info is
+        // available. The bean is profile-gated and optional, so ifAvailable no-ops when absent. It
+        // has its own watermark and try/catch.
+        navigatorVoteReportAggregationService.ifAvailable { it.aggregateNavigatorVoteReports() }
     }
 
-    // Tracks the last target round for event publishing in finally block
-    private var lastTargetRound: Int = 0
-
-    private fun aggregateFirstSeen() {
-        val started = System.currentTimeMillis()
-        logger.info("Starting user first_seen aggregation...")
-
-        // 1. Get latest round from cycle_info, then target = latest - 1
+    /** Completed rounds (up to `latest cycle - 1`) above the watermark, ascending. */
+    private fun pendingRounds(): List<Int> {
         val latestCycleInfo = cycleInfoRepository.findTopByOrderByRoundIdDesc()
         if (latestCycleInfo == null) {
-            logger.info("No cycle info available, skipping")
-            return
+            logger.info("No cycle info available, skipping UserFirstSeen")
+            return emptyList()
         }
         val targetRound = latestCycleInfo.roundId - 1
-        if (targetRound <= 0) {
-            logger.info("Target round {} is <= 0, skipping", targetRound)
-            return
-        }
-        lastTargetRound = targetRound
-
-        // 2. Check watermark — skip if already processed
         val watermarkDoc =
             mongoTemplate.findOne(
                 Query(Criteria.where("_id").`is`(WATERMARK_ID)),
@@ -87,17 +90,22 @@ class UserFirstSeenAggregationService(
                 WATERMARK_COLLECTION,
             )
         val lastProcessedRound = watermarkDoc?.getInteger("lastProcessedRoundId") ?: 0
-
         if (targetRound <= lastProcessedRound) {
             logger.info(
                 "Target round {} already processed (watermark={}), skipping",
                 targetRound,
                 lastProcessedRound,
             )
-            return
+            return emptyList()
         }
+        return ((lastProcessedRound + 1)..targetRound).toList()
+    }
 
-        // 3. Aggregate first-seen data for the target round only
+    private fun aggregateFirstSeen(targetRound: Int) {
+        val started = System.currentTimeMillis()
+        logger.info("Starting user first_seen aggregation for round {}...", targetRound)
+
+        // Aggregate first-seen data for the target round only
         val sourceCollection = IndexerNames.APP_ROUND_ACTION_SUMMARY.COLLECTION
         val targetCollection = IndexerNames.USER_FIRST_SEEN.COLLECTION
 
@@ -138,7 +146,7 @@ class UserFirstSeenAggregationService(
             logger.info("Bulk upsert completed for {} (appId, user) pairs", count)
         }
 
-        // 4. Update watermark
+        // Update watermark
         mongoTemplate.upsert(
             Query(Criteria.where("_id").`is`(WATERMARK_ID)),
             Update.update("lastProcessedRoundId", targetRound).set("updatedAt", now),
